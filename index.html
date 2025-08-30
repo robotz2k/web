@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Explorador del directorio raíz</title>
+  <style>
+    body { font-family: sans-serif; }
+    ul { list-style: none; padding-left: 0; }
+    li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <h1>Explorador del directorio raíz</h1>
+  <ul id="file-list"></ul>
+  <script>
+    async function load(path = '/') {
+      const res = await fetch(path);
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const links = Array.from(doc.querySelectorAll('a'));
+      const list = document.getElementById('file-list');
+      list.innerHTML = '';
+      links.forEach(link => {
+        const href = new URL(link.getAttribute('href'), res.url).pathname;
+        const name = link.textContent;
+        if (name === 'Parent Directory') return;
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.textContent = name;
+        a.href = href;
+        if (href.endsWith('/')) {
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            load(href);
+          });
+        }
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }
+    load();
+  </script>
+</body>
+</html>
