@@ -1,0 +1,533 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Energy Puzzle — Single File</title>
+  <style>
+  :root{
+    --bg:#0a0f1a; --panel:#111827; --text:#e5e7eb; --muted:#9aa4b2;
+    --grid:#0bd0e0; --cell:#182135; --cable:#f6d32d; --gen:#22c55e; --house:#e11d87; --obs:#ef4444;
+    --ok:#34d399; --warn:#f59e0b; --bad:#ef4444; --accent:#22d3ee;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1400px 800px at 15% -10%, #12223f 0%, transparent 40%),var(--bg);color:var(--text);font:15px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--accent);text-decoration:none}
+  header{padding:16px 20px;background:var(--panel);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1f2a3e;position:sticky;top:0;z-index:10}
+  .nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .ttl{font-weight:900;letter-spacing:.5px}
+  .ttl b{color:var(--accent)}
+  .stars{color:#ffd34d;font-size:18px;margin-top:2px;letter-spacing:2px}
+  .hud{display:flex;gap:12px;align-items:center;color:var(--muted);flex-wrap:wrap;justify-content:flex-end}
+  .navbtn{border:1px solid #2b3b57;background:#182338;color:#cbd5e1;border-radius:10px;padding:8px 10px;font-weight:800;cursor:pointer}
+  .navbtn.active{background:var(--accent);color:#06212d;border-color:transparent}
+  .wrap{display:grid;grid-template-columns: 1fr 320px;gap:20px;max-width:1180px;margin:20px auto;padding:0 16px}
+  .boardWrap{padding:14px;border:2px solid var(--grid);border-radius:16px}
+  .board{--n:6;display:grid;grid-template-columns:repeat(var(--n),64px);grid-template-rows:repeat(var(--n),64px);gap:8px;place-content:center}
+  .cell{width:64px;height:64px;border-radius:10px;background:var(--cell);position:relative;border:1px solid #23324f;cursor:crosshair;user-select:none}
+  .cell[data-type="1"]::after{content:"";position:absolute;inset:14px;border-radius:50%;background:var(--gen);box-shadow:0 0 10px #22c55eAA, inset 0 0 10px #0f5132}
+  .cell[data-type="2"]::after{content:"";position:absolute;inset:16px;border-radius:8px;background:var(--house);box-shadow:0 0 10px #e11d87AA, inset 0 0 10px #5b103a}
+  .cell[data-type="3"]::after{content:"";position:absolute;inset:10px;border-radius:8px;background:var(--obs);box-shadow:0 0 10px #ef4444AA, inset 0 0 10px #5a0f0f}
+  .cell.cable{outline:3px solid var(--cable);outline-offset:-10px;box-shadow:0 0 14px #f6d32d55}
+  .cell.house-done::before{content:"✔";position:absolute;right:4px;top:2px;font-weight:900;color:#86efac;text-shadow:0 0 8px #16a34a88}
+  aside{display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--panel);border:1px solid #1f2a3e;border-radius:14px;padding:14px}
+  .card h3{margin:0 0 8px;font-size:14px;color:#c7d2fe;letter-spacing:.4px;text-transform:uppercase}
+  .progress{height:14px;border-radius:999px;background:#0a1425;border:1px solid #1d2842;position:relative}
+  .progress>span{position:absolute;inset:0;width:var(--w,0%);background:linear-gradient(90deg,#ffd34d,#ff894d);border-radius:999px;box-shadow:0 0 10px #ffd34d55}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chip{display:flex;align-items:center;gap:8px;background:#0b1323;border:1px solid #24324d;color:#e2e8f0;border-radius:999px;padding:6px 10px;font-weight:700}
+  .goals{display:flex;gap:8px;flex-wrap:wrap}
+  .goal{display:flex;align-items:center;gap:6px;background:#0b1323;border:1px solid #24324d;color:#e2e8f0;border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer}
+  .goal.done{border-color:#14532d;color:#86efac;background:#052e1a}
+  .goal .mark{font-weight:900}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{background:var(--accent);color:#06212d;border:0;border-radius:10px;padding:10px 12px;font-weight:800;cursor:pointer}
+  .btn.alt{background:#182338;color:#cbd5e1;border:1px solid #2b3b57}
+  .legend{display:flex;gap:8px;flex-wrap:wrap}
+  .lg{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid #24324d;color:#cbd5e1}
+  .dot{width:14px;height:14px;border-radius:50%}
+  footer{max-width:1180px;margin:10px auto 30px;padding:0 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;color:var(--muted)}
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);padding:10px 14px;border-radius:10px;background:#0b1323;border:1px solid #233a59;color:#cbd5e1;display:none;z-index:60}
+  .toast.show{display:block}
+  .starsLive{font-weight:900;letter-spacing:2px}
+  .modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-content{background:var(--panel);border:1px solid #274061;padding:18px 16px;border-radius:14px;max-width:520px;width:92%}
+  .modal h2{margin:0 0 8px}
+  .choices{display:grid;gap:10px;margin-top:10px}
+  .choice{padding:10px 12px;border-radius:10px;border:1px solid #334766;background:#0b1323;color:#e5e7eb;cursor:pointer;font-weight:700}
+  .choice:hover{background:#11213a}
+  .modal-actions{display:flex;justify-content:flex-end;margin-top:14px;gap:10px}
+  /* Missions view */
+  .container{max-width:1100px;margin:24px auto;padding:0 16px}
+  .missions{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .mission{background:var(--panel);border:1px solid #253551;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .tags{display:flex;gap:8px;flex-wrap:wrap}
+  .tag{font-size:12px;border:1px solid #2a3a5a;border-radius:999px;padding:4px 8px;color:#cbd5e1}
+  .reward{display:flex;gap:8px;flex-wrap:wrap}
+  .reward .chip{padding:4px 8px}
+  hr.sep{border:none;border-top:1px dashed #2a3a5a;margin:12px 0}
+  .empty{color:var(--muted);text-align:center;padding:30px 0}
+  .views{display:none}
+  .views.active{display:block}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <div class="ttl">ENERGY PUZZLE — <b id="levelName">Level 1</b></div>
+      <div class="stars"><span id="stars">☆☆☆</span></div>
+      <button class="navbtn active" id="btnGame">Juego</button>
+      <button class="navbtn" id="btnMissions">Misiones Diarias</button>
+    </div>
+    <div class="hud">
+      <div id="score">Puntos: 10,000</div>
+      <div id="stats">Derrotas: <b id="defeats">0</b> • Casas energizadas: <b id="housesCount">0/0</b></div>
+      <div id="wallet">Dinero: <b id="money">$0</b> • ⛽ <b id="fuel">0</b></div>
+    </div>
+  </header>
+
+  <!-- GAME VIEW -->
+  <section id="view-game" class="views active">
+    <main class="wrap">
+      <section class="boardWrap">
+        <div class="board" id="board" aria-label="Tablero de conexiones"></div>
+      </section>
+      <aside>
+        <div class="card">
+          <h3>Vatios</h3>
+          <div class="row">
+            <div class="chip">Usados: <span id="wattsUsed">0</span></div>
+            <div class="chip">Límite: <span id="wattsMax">100</span></div>
+          </div>
+          <div class="progress" style="margin-top:10px"><span id="wattsBar"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>Retos (Casas)</h3>
+          <div id="goals" class="goals"></div>
+          <small style="color:var(--muted)">Tip: Click en una casa para abrir su minijuego.</small>
+        </div>
+
+        <div class="card">
+          <h3>Controles</h3>
+          <div class="row">
+            <button class="btn" id="paintBtn">Pintar cable</button>
+            <button class="btn alt" id="eraseBtn">Borrar cable</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn alt" id="resetBtn">Reiniciar</button>
+            <button class="btn alt" id="nextBtn">Siguiente nivel</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Inventario</h3>
+          <div id="inv" class="goals"></div>
+        </div>
+
+        <div class="card">
+          <h3>Leyenda</h3>
+          <div class="legend">
+            <span class="lg"><span class="dot" style="background:var(--gen)"></span> Generador</span>
+            <span class="lg"><span class="dot" style="background:var(--house)"></span> Casa/Objetivo</span>
+            <span class="lg"><span class="dot" style="background:var(--obs)"></span> Obstáculo</span>
+            <span class="lg"><span class="dot" style="background:var(--cable)"></span> Cable</span>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      <div>Conecta todas las casas y resuelve su minijuego sin superar el límite de vatios.</div>
+      <div class="starsLive">Estrellas: <span id="starsLive">0/3</span></div>
+    </footer>
+  </section>
+
+  <!-- MISSIONS VIEW -->
+  <section id="view-missions" class="views">
+    <div class="container">
+      <h2>Misiones Diarias — <span id="mDate"></span></h2>
+      <p class="empty" id="mEmpty" style="display:none">No hay misiones para hoy.</p>
+      <div class="missions" id="mList"></div>
+      <hr class="sep" />
+      <small>Las misiones se regeneran automáticamente cada día. Debes <b>aceptarlas</b> para que el juego las evalúe y otorgue recompensas.</small>
+    </div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- Modal de minijuegos -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <h2 id="modalTitle">Minijuego</h2>
+      <div id="modalBody"></div>
+      <div class="modal-actions">
+        <button class="btn alt" onclick="closeModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Cofre -->
+  <div id="chestModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="chestTitle">
+    <div class="modal-content">
+      <h2 id="chestTitle">¡Cofre de Recompensa!</h2>
+      <div id="chestBody"></div>
+      <div class="modal-actions">
+        <button class="btn" id="chestOk">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== Persistence & util =====
+  const EP_PREFIX = "ep.";
+  const store = {
+    get(key, def=null){ try{ const v = localStorage.getItem(EP_PREFIX+key); return v? JSON.parse(v): def; }catch(e){ return def; } },
+    set(key, val){ localStorage.setItem(EP_PREFIX+key, JSON.stringify(val)); }
+  };
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function defaultState(){
+    return { levelIndex:0, points:10000, defeats:0, money:10000, fuel:3, ownedGenerators:["110v"], tech:[], levelsCompletedTotal:0, levelsWonInRow:0 };
+  }
+  function getState(){ return store.get("state", defaultState()); }
+  function setState(s){ store.set("state", s); }
+
+  function todayKey(){
+    const d = new Date(); const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+    return \`\${y}\${m}\${dd}\`;
+  }
+  function cryptoRandomId(){
+    try{ const arr = new Uint8Array(8); crypto.getRandomValues(arr); return Array.from(arr).map(b=>b.toString(16).padStart(2,"0")).join(""); }
+    catch(e){ return String(Math.random()).slice(2); }
+  }
+  function generateMissions(){
+    const pool = [
+      {title:"Consigue 2★ o más", diff:"Media", cond:{type:"stars_at_least", value:2}, rewards:{money:500, fuel:1}},
+      {title:"Finaliza con ≤80% vatios", diff:"Media", cond:{type:"watts_ratio_max", value:0.8}, rewards:{money:600}},
+      {title:"Gana 2 niveles seguidos", diff:"Difícil", cond:{type:"levels_in_row", value:2}, rewards:{money:800, generator:"220v"}},
+      {title:"Consigue 3★", diff:"Difícil", cond:{type:"stars_at_least", value:3}, rewards:{money:1000, fuel:2}},
+      {title:"Completa un nivel", diff:"Fácil", cond:{type:"stars_at_least", value:1}, rewards:{money:300}},
+    ];
+    const out = [];
+    while(out.length<3){
+      const cand = pick(pool);
+      if(!out.find(m=>m.title===cand.title)){
+        out.push({ id: cryptoRandomId(), title:cand.title, diff:cand.diff, cond:cand.cond, rewards:cand.rewards, accepted:false, completed:false });
+      }
+    }
+    return out;
+  }
+  function getMissionsForToday(){
+    const key = "missions."+todayKey();
+    let pack = store.get(key);
+    if(!pack){ pack = { date: todayKey(), missions: generateMissions() }; store.set(key, pack); }
+    return pack;
+  }
+  function setMissionsForToday(pack){ store.set("missions."+todayKey(), pack); }
+  function applyRewards(rew){
+    const st = getState();
+    if(rew.money) st.money += rew.money;
+    if(rew.fuel) st.fuel += rew.fuel;
+    if(rew.generator){ if(!st.ownedGenerators.includes(rew.generator)) st.ownedGenerators.push(rew.generator); }
+    setState(st);
+  }
+  function rollChestReward(){
+    const lootTable = [
+      {type:"money", amount: 500},
+      {type:"money", amount: 1000},
+      {type:"fuel", amount: 1},
+      {type:"fuel", amount: 2},
+      {type:"generator", model: "220v"},
+      {type:"generator", model: "500v"}
+    ];
+    const loot = pick(lootTable);
+    const st = getState(); let text = "";
+    if(loot.type==="money"){ st.money += loot.amount; text = \`Dinero +$\${loot.amount}\`; }
+    if(loot.type==="fuel"){ st.fuel += loot.amount; text = \`Combustible +\${loot.amount}\`; }
+    if(loot.type==="generator"){ if(!st.ownedGenerators.includes(loot.model)) st.ownedGenerators.push(loot.model); text = \`Generador \${loot.model} desbloqueado\`; }
+    setState(st); return text;
+  }
+  function evaluateMissionsAfterWin({stars, wattsRatio}){
+    const pack = getMissionsForToday(); let updated = false;
+    pack.missions.forEach(m => {
+      if(!m.accepted || m.completed) return;
+      const cond = m.cond;
+      if(cond.type==="stars_at_least" && stars >= cond.value){ m.completed = true; applyRewards(m.rewards); updated = true; }
+      if(cond.type==="watts_ratio_max" && wattsRatio <= cond.value){ m.completed = true; applyRewards(m.rewards); updated = true; }
+      if(cond.type==="levels_in_row"){ const st = getState(); if(st.levelsWonInRow >= cond.value){ m.completed = true; applyRewards(m.rewards); updated = true; } }
+    });
+    if(updated) setMissionsForToday(pack);
+    return updated;
+  }
+
+  // ===== Views (Game / Missions) =====
+  const btnGame = document.getElementById("btnGame");
+  const btnMissions = document.getElementById("btnMissions");
+  const viewGame = document.getElementById("view-game");
+  const viewMissions = document.getElementById("view-missions");
+  function showView(which){
+    if(which==="game"){
+      viewGame.classList.add("active"); viewMissions.classList.remove("active");
+      btnGame.classList.add("active"); btnMissions.classList.remove("active");
+      renderMissionsView(); // refresh wallet numbers
+    }else{
+      viewMissions.classList.add("active"); viewGame.classList.remove("active");
+      btnMissions.classList.add("active"); btnGame.classList.remove("active");
+      renderMissionsView();
+    }
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+  btnGame.onclick = ()=> showView("game");
+  btnMissions.onclick = ()=> showView("missions");
+
+  // ===== Game logic =====
+  const LEVELS = [
+    { name:"Level 1", maxWatts:100, points:10000, grid:[[1,0,0,2,3,0],[0,0,0,0,0,0],[0,3,0,0,0,2],[0,0,0,0,0,0],[0,0,3,0,0,0],[2,0,0,0,0,0]] },
+    { name:"Level 2", maxWatts:100, points:10000, grid:[[1,0,0,0,3,0],[0,0,0,0,0,0],[0,3,0,2,0,0],[0,0,0,0,0,0],[0,0,3,0,0,2],[0,0,0,0,0,0]] }
+  ];
+  const COST_PER_SEGMENT = 2;
+  let levelIndex=0, grid=[], cable=[], rows=6, cols=6, usedWatts=0, maxWatts=100, housesConnected=0, totalHouses=0;
+  let isErasing=false, isMouseDown=false, lastRC=null;
+  let houseSolved = new Map();
+
+  const boardEl = document.getElementById("board");
+  const wattsUsedEl = document.getElementById("wattsUsed");
+  const wattsMaxEl = document.getElementById("wattsMax");
+  const wattsBarEl = document.getElementById("wattsBar");
+  const starsEl = document.getElementById("stars");
+  const starsLiveEl = document.getElementById("starsLive");
+  const housesCountEl = document.getElementById("housesCount");
+  const defeatsEl = document.getElementById("defeats");
+  const levelNameEl = document.getElementById("levelName");
+  const scoreEl = document.getElementById("score");
+  const moneyEl = document.getElementById("money");
+  const fuelEl = document.getElementById("fuel");
+  const goalsEl = document.getElementById("goals");
+  const invEl = document.getElementById("inv");
+
+  function showToast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(()=>t.classList.remove("show"), 1600);
+  }
+  function idFor(r,c){ return \`cell-\${r}-\${c}\`; }
+  function keyRC(r,c){ return \`\${r},\${c}\`; }
+  function inBounds(r,c){ return r>=0 && r<rows && c>=0 && c<cols; }
+  function neighbors(r,c){ return [[1,0],[-1,0],[0,1],[0,-1]].map(([dr,dc])=>[r+dr,c+dc]).filter(([rr,cc])=>inBounds(rr,cc)); }
+
+  function updateWalletUI(){
+    const st = getState();
+    moneyEl.textContent = "$"+st.money.toLocaleString();
+    fuelEl.textContent = st.fuel;
+    defeatsEl.textContent = st.defeats;
+    invEl.innerHTML = "";
+    st.ownedGenerators.forEach(g=>{
+      const tag = document.createElement("div"); tag.className="goal done"; tag.textContent = "Generador "+g; invEl.appendChild(tag);
+    });
+    if(st.tech && st.tech.length){
+      st.tech.forEach(t=>{
+        const tag = document.createElement("div"); tag.className="goal"; tag.textContent = "Tech "+t; invEl.appendChild(tag);
+      });
+    }
+  }
+
+  function loadLevel(i){
+    const st = getState(); levelIndex = i;
+    const lvl = LEVELS[i];
+    levelNameEl.textContent = lvl.name;
+    scoreEl.textContent = "Puntos: " + lvl.points.toLocaleString();
+    maxWatts = lvl.maxWatts; usedWatts = 0;
+    grid = lvl.grid.map(row => row.slice());
+    cable = grid.map(row => row.map(()=>0));
+    rows = grid.length; cols = grid[0].length;
+    totalHouses = grid.flat().filter(v=>v===2).length;
+    housesConnected = 0; houseSolved.clear();
+    wattsMaxEl.textContent = maxWatts;
+    renderBoard(); updateGoalsList(); updateAll(); updateWalletUI();
+    st.levelIndex = i; setState(st);
+  }
+  function renderBoard(){
+    boardEl.style.setProperty("--n", cols); boardEl.innerHTML = "";
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const d = document.createElement("div"); d.className="cell"; d.dataset.r=r; d.dataset.c=c; d.dataset.type=grid[r][c]; d.id=idFor(r,c);
+        d.addEventListener("mousedown", onDown); d.addEventListener("mouseenter", onEnter); d.addEventListener("mouseup", onUp);
+        d.addEventListener("click", onCellClickOpenMiniGame); d.addEventListener("contextmenu", e=>e.preventDefault());
+        boardEl.appendChild(d);
+      }
+    }
+    document.body.addEventListener("mouseup", ()=>{ isMouseDown=false; lastRC=null; });
+  }
+  function onDown(e){ isMouseDown=true; isErasing=(e.button===2)?true:isErasing; const r=+this.dataset.r,c=+this.dataset.c; paintOrErase(r,c,true); }
+  function onEnter(e){ if(!isMouseDown) return; const r=+this.dataset.r,c=+this.dataset.c; paintOrErase(r,c,false); }
+  function onUp(e){ isMouseDown=false; lastRC=null; updateAll(); }
+  function paintOrErase(r,c,first){
+    const type = grid[r][c]; if(type!==0){ lastRC=[r,c]; return; }
+    if(lastRC && !(Math.abs(lastRC[0]-r)+Math.abs(lastRC[1]-c)===1)) return;
+    lastRC=[r,c]; cable[r][c] = isErasing?0:1; renderCableCell(r,c); recalcWatts(); updateStars();
+  }
+  function onCellClickOpenMiniGame(e){
+    const r=+this.dataset.r, c=+this.dataset.c; if(grid[r][c]!==2) return;
+    const key = keyRC(r,c); if(houseSolved.get(key)){ showToast("Esta casa ya resolvió su minijuego."); return; }
+    const types=["corte","breaker"]; openModal(types[Math.floor(Math.random()*types.length)], r, c);
+  }
+  function renderCableCell(r,c){ const el=document.getElementById(idFor(r,c)); if(!el) return; if(cable[r][c]===1) el.classList.add("cable"); else el.classList.remove("cable"); }
+  function recalcWatts(){ let seg=0; for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) if(cable[r][c]===1) seg++; usedWatts = seg * COST_PER_SEGMENT; }
+  function updateConnectivity(){
+    const gens=[]; for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) if(grid[r][c]===1) gens.push([r,c]);
+    const vis=new Set(gens.map(([r,c])=>\`\${r},\${c}\`)); const q=[...gens];
+    while(q.length){ const [r,c]=q.shift(); [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{
+      const rr=r+dr, cc=c+dc, key=\`\${rr},\${cc}\`; if(rr<0||cc<0||rr>=rows||cc>=cols) return; if(vis.has(key)) return;
+      if(grid[rr][cc]===3) return; if(grid[rr][cc]===0 && cable[rr][cc]===0) return; vis.add(key); q.push([rr,cc]);
+    });}
+    let count=0, idx=0; const goals=document.querySelectorAll(".goal");
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) if(grid[r][c]===2){
+      const reached = vis.has(\`\${r},\${c}\`); const solved = !!houseSolved.get(keyRC(r,c)); const connected = reached && solved;
+      const cellEl=document.getElementById(idFor(r,c)); if(cellEl) cellEl.classList.toggle("house-done", connected);
+      if(goals[idx]){ goals[idx].classList.toggle("done", connected); goals[idx].querySelector(".mark").textContent = connected ? "✔" : "✖"; } idx++; if(connected) count++;
+    }
+    housesConnected = count;
+  }
+  function updateGoalsList(){
+    goalsEl.innerHTML=""; let k=1;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) if(grid[r][c]===2){
+      const g=document.createElement("div"); g.className="goal"; g.dataset.r=r; g.dataset.c=c;
+      g.innerHTML=\`<span>Casa \${k}</span><span class="mark">✖</span>\`; g.onclick=()=> openModal(["corte","breaker"][Math.floor(Math.random()*2)], r, c);
+      goalsEl.appendChild(g); k++;
+    }
+  }
+  function updateBars(){
+    const pct = Math.min(1, usedWatts / Math.max(1, maxWatts)) * 100;
+    wattsBarEl.style.setProperty("--w", pct.toFixed(1)+"%"); wattsUsedEl.textContent = usedWatts;
+    housesCountEl.textContent = \`\${housesConnected}/\${totalHouses}\`; defeatsEl.textContent = getState().defeats;
+  }
+  function calcStars(){
+    const ratio = usedWatts / maxWatts;
+    if(housesConnected===totalHouses && usedWatts<=maxWatts){
+      if(ratio<=0.5) return {stars:3, ratio}; if(ratio<=0.8) return {stars:2, ratio}; return {stars:1, ratio};
+    } return {stars:0, ratio};
+  }
+  function updateStars(){
+    const {stars, ratio} = calcStars(); let starsTxt="☆☆☆", live="0/3";
+    if(stars===3){ starsTxt="★★★"; live="3/3"; } else if(stars===2){ starsTxt="★★☆"; live="2/3"; }
+    else if(stars===1){ starsTxt="★☆☆"; live="1/3"; }
+    else { if(ratio<=0.5) starsTxt="★★★"; else if(ratio<=0.8) starsTxt="★★☆"; else starsTxt="★☆☆"; }
+    starsEl.textContent = starsTxt; starsLiveEl.textContent = live;
+  }
+  function checkWinLose(){
+    const st = getState(); if(usedWatts > maxWatts){ showToast("¡Sin energía! Superaste el límite de vatios."); return; }
+    const {stars, ratio} = calcStars();
+    if(stars>=1){
+      showToast(\`¡Nivel completado! Estrellas: \${stars}\`);
+      st.points += 250*stars; st.levelsCompletedTotal += 1; st.levelsWonInRow += 1; setState(st);
+      const updated = evaluateMissionsAfterWin({stars, wattsRatio: ratio}); if(updated) showToast("¡Misiones actualizadas!");
+      if(st.levelsCompletedTotal % 3 === 0){ openChest(); }
+    }
+  }
+  function updateAll(){ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) renderCableCell(r,c);
+    updateConnectivity(); updateBars(); updateStars(); checkWinLose(); updateWalletUI(); }
+
+  // Modals (minigames)
+  function openModal(type, r, c){
+    const modal=document.getElementById("modal"), title=document.getElementById("modalTitle"), body=document.getElementById("modalBody");
+    body.innerHTML="";
+    if(type==="corte"){
+      title.textContent="Elimina el Cortocircuito";
+      const hint=document.createElement("div"); hint.innerHTML=`<small style="color:var(--muted)">Uno de estos cables está en corto. Corta el correcto.</small>`; body.appendChild(hint);
+      const colors=["Rojo","Azul","Verde","Amarillo"], correct=Math.floor(Math.random()*colors.length);
+      const wrap=document.createElement("div"); wrap.className="choices";
+      colors.forEach((color,i)=>{ const btn=document.createElement("div"); btn.textContent="Cortar cable "+color; btn.className="choice";
+        btn.onclick=()=>{ if(i===correct){ showToast("¡Cortaste el cable correcto!"); houseSolved.set(keyRC(r,c), true); }
+          else{ showToast("Cable incorrecto — se perdió energía."); usedWatts=Math.min(maxWatts+1, usedWatts+10); const st=getState(); st.defeats+=1; setState(st); }
+          closeModal(); updateAll(); };
+        wrap.appendChild(btn);
+      }); body.appendChild(wrap);
+    }
+    if(type==="breaker"){
+      title.textContent="Reemplazar Breaker Dañado"; const options=["110v","220v","500v","1000v"]; const required=options[Math.floor(Math.random()*options.length)];
+      const hint=document.createElement("div"); hint.innerHTML=`<small style="color:var(--muted)">Pista: el circuito requiere <b>${required}</b>.</small>`; body.appendChild(hint);
+      const wrap=document.createElement("div"); wrap.className="choices";
+      options.forEach(volt=>{ const btn=document.createElement("div"); btn.textContent="Usar breaker "+volt; btn.className="choice";
+        btn.onclick=()=>{ if(volt===required){ showToast("¡Correcto! Breaker reemplazado."); houseSolved.set(keyRC(r,c), true); }
+          else{ showToast("Breaker incorrecto — perdiste puntos y energía."); usedWatts=Math.min(maxWatts+1, usedWatts+6); const st=getState(); st.defeats+=1; setState(st); }
+          closeModal(); updateAll(); };
+        wrap.appendChild(btn);
+      }); body.appendChild(wrap);
+    }
+    modal.style.display="flex";
+  }
+  function closeModal(){ document.getElementById("modal").style.display="none"; }
+
+  // Chest popup
+  function openChest(){
+    const modal=document.getElementById("chestModal"), body=document.getElementById("chestBody"), btn=document.getElementById("chestOk");
+    body.innerHTML="<p>Abriendo cofre...</p>"; modal.style.display="flex";
+    const text = rollChestReward();
+    setTimeout(()=>{ body.innerHTML = \`<p>¡Has obtenido: <b>\${text}</b>!</p>\`; }, 600);
+    btn.onclick = ()=>{ modal.style.display="none"; updateWalletUI(); showToast("Recompensa aplicada"); };
+  }
+
+  // Buttons
+  document.getElementById("paintBtn").addEventListener("click",()=>{ isErasing=false; showToast("Modo: Pintar cable"); });
+  document.getElementById("eraseBtn").addEventListener("click",()=>{ isErasing=true; showToast("Modo: Borrar cable"); });
+  document.getElementById("resetBtn").addEventListener("click",()=>{
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) cable[r][c]=0; usedWatts=0; houseSolved.clear();
+    const st=getState(); st.levelsWonInRow=0; setState(st); updateAll(); showToast("Tablero reiniciado");
+  });
+  document.getElementById("nextBtn").addEventListener("click",()=>{
+    const st=getState(); if(st.fuel<=0){ showToast("No tienes combustible suficiente para jugar otro nivel."); return; }
+    st.fuel-=1; setState(st); levelIndex=(levelIndex+1)%LEVELS.length; loadLevel(levelIndex); showToast("Cargando "+LEVELS[levelIndex].name);
+  });
+
+  // ===== Missions view renderer =====
+  function renderMissionsView(){
+    const mDate=document.getElementById("mDate"), mList=document.getElementById("mList"), mEmpty=document.getElementById("mEmpty");
+    if(!mDate) return; // view not active yet
+    const pack = getMissionsForToday(); mDate.textContent = pack.date;
+    mList.innerHTML=""; if(!pack.missions.length){ mEmpty.style.display="block"; return; } mEmpty.style.display="none";
+    pack.missions.forEach(m=>{
+      const card=document.createElement("div"); card.className="mission";
+      const tags=document.createElement("div"); tags.className="tags";
+      const diff=document.createElement("span"); diff.className="tag"; diff.textContent="Dificultad: "+m.diff; tags.appendChild(diff);
+
+      const title=document.createElement("div"); title.innerHTML = \`<b>\${m.title}</b>\`;
+      const cond=document.createElement("div"); cond.style.color="var(--muted)"; cond.innerHTML = "Condición: "+describeCond(m.cond);
+
+      const rewards=document.createElement("div"); rewards.className="reward";
+      if(m.rewards.money) rewards.innerHTML += \`<span class="chip">+$\${m.rewards.money}</span>\`;
+      if(m.rewards.fuel) rewards.innerHTML += \`<span class="chip">+⛽ \${m.rewards.fuel}</span>\`;
+      if(m.rewards.generator) rewards.innerHTML += \`<span class="chip">Gen \${m.rewards.generator}</span>\`;
+
+      const actions=document.createElement("div"); actions.className="row";
+      const btnAccept=document.createElement("button"); btnAccept.className="btn"; btnAccept.textContent = m.accepted?"Aceptada":"Aceptar"; btnAccept.disabled = m.accepted;
+      btnAccept.onclick=()=>{ m.accepted=true; setMissionsForToday(pack); renderMissionsView(); };
+      const btnClaim=document.createElement("button"); btnClaim.className="btn alt"; btnClaim.textContent="Reclamar"; btnClaim.disabled=!m.completed;
+      btnClaim.onclick=()=>{ if(!m.completed) return; btnClaim.disabled=true; };
+
+      const status=document.createElement("div"); status.style.color = m.completed? "var(--ok)":"var(--muted)"; status.textContent = m.completed ? "Completada ✔" : (m.accepted ? "En curso…" : "Disponible");
+
+      actions.appendChild(btnAccept); actions.appendChild(btnClaim);
+      card.appendChild(tags); card.appendChild(title); card.appendChild(cond); card.appendChild(document.createElement("hr")).className="sep";
+      card.appendChild(rewards); card.appendChild(actions); card.appendChild(status);
+      mList.appendChild(card);
+    });
+    updateWalletUI();
+  }
+  function describeCond(c){
+    if(c.type==="stars_at_least") return \`Consigue al menos \${c.value}★ en un nivel.\`;
+    if(c.type==="watts_ratio_max") return \`Termina usando ≤ \${(c.value*100).toFixed(0)}% de vatios.\`;
+    if(c.type==="levels_in_row") return \`Gana \${c.value} niveles seguidos.\`;
+    return "—";
+  }
+
+  // ===== Init =====
+  (function init(){
+    // View nav from local hash
+    if(location.hash==="#missions"){ showView("missions"); } else { showView("game"); }
+    const st = getState(); loadLevel(st.levelIndex || 0);
+  })();
+  </script>
+</body>
+</html>
